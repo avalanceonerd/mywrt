@@ -130,7 +130,7 @@ jobs:
 
       - name: Upload to Release
         if: steps.organize.outputs.status == 'success'
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.determine-targets.outputs.build_tag }}
           name: ImmortalWrt ${{ needs.determine-targets.outputs.build_date }}
