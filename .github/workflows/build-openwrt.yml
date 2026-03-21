@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      build_date: ${{ steps.date.outputs.date }}
+      build_tag: ${{ steps.date.outputs.tag }}
     steps:
       - id: set-matrix
         run: |
@@ -32,6 +34,10 @@ jobs:
           else
             echo 'matrix={"target":["${{ github.event.inputs.target }}"]}' >> $GITHUB_OUTPUT
           fi
+      - id: date
+        run: |
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "tag=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
 
   build:
     needs: determine-targets
@@ -92,37 +98,58 @@ jobs:
           make -j$(nproc) || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Organize files
+      - name: Organize firmware files
+        id: organize
         if: steps.compile.outputs.status == 'success'
         run: |
           cd openwrt/bin/targets
-          # Find the target directory
           TARGET_DIR=$(find . -type d -mindepth 2 -maxdepth 2 | head -1)
-          echo "TARGET_DIR=$TARGET_DIR" >> $GITHUB_ENV
-
           cd $TARGET_DIR
-          # Remove packages directory to save space
           rm -rf packages
-          # List firmware files
-          echo "Firmware files:"
-          ls -lh
 
-      - name: Upload firmware
-        if: steps.compile.outputs.status == 'success'
+          # Create a clean output directory
+          mkdir -p $GITHUB_WORKSPACE/firmware/${{ matrix.target }}
+
+          # Copy firmware files (combined images, sysupgrade, sha256sums)
+          cp -f *combined*.img.gz $GITHUB_WORKSPACE/firmware/${{ matrix.target }}/ 2>/dev/null || true
+          cp -f *sysupgrade*.img.gz $GITHUB_WORKSPACE/firmware/${{ matrix.target }}/ 2>/dev/null || true
+          cp -f *factory*.img.gz $GITHUB_WORKSPACE/firmware/${{ matrix.target }}/ 2>/dev/null || true
+          cp -f sha256sums $GITHUB_WORKSPACE/firmware/${{ matrix.target }}/ 2>/dev/null || true
+
+          echo "Firmware files:"
+          ls -lh $GITHUB_WORKSPACE/firmware/${{ matrix.target }}/
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Upload firmware artifact
+        if: steps.organize.outputs.status == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt-${{ matrix.target }}-${{ github.run_number }}
-          path: |
-            openwrt/bin/targets/**/*combined*
-            openwrt/bin/targets/**/*sysupgrade*
-            openwrt/bin/targets/**/*factory*
-            openwrt/bin/targets/**/sha256sums
+          name: openwrt-${{ matrix.target }}-${{ needs.determine-targets.outputs.build_tag }}
+          path: firmware/${{ matrix.target }}/
           retention-days: 30
 
-      - name: Upload full bin
-        if: steps.compile.outputs.status == 'success'
-        uses: actions/upload-artifact@v4
+      - name: Upload to Release
+        if: steps.organize.outputs.status == 'success'
+        uses: softprops/action-gh-release@v2
         with:
-          name: openwrt-${{ matrix.target }}-full-${{ github.run_number }}
-          path: openwrt/bin/targets/
-          retention-days: 7
+          tag_name: ${{ needs.determine-targets.outputs.build_tag }}
+          name: ImmortalWrt ${{ needs.determine-targets.outputs.build_date }}
+          body: |
+            ## ImmortalWrt 固件 ${{ needs.determine-targets.outputs.build_date }}
+
+            基于 ImmortalWrt `${{ env.REPO_BRANCH }}` 分支编译
+
+            ### 包含插件
+            - OpenClash / MosDNS / Tailscale (GUI)
+            - DDNS / UPnP / TTYD / WoL / frpc
+            - Turboacc / Watchcat / SQM / nlbwmon
+            - 中文界面 / PPPoE / IPv6
+
+            ### 设备对应文件
+            - `*x86*` → J1900
+            - `*r4s*` → NanoPi R4S
+            - `*r2s*` → NanoPi R2S
+          files: firmware/${{ matrix.target }}/*
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
