@@ -52,12 +52,32 @@ jobs:
 
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghcrunner /usr/local/share/boost
+          echo "=== Before cleanup ==="
+          df -hT
+          # Remove large pre-installed software
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghcrunner \
+            /usr/local/share/boost /usr/local/graalvm /usr/local/share/powershell \
+            /usr/local/share/chromium /usr/local/lib/node_modules \
+            /opt/hostedtoolcache /opt/az /opt/microsoft /opt/pipx \
+            /usr/share/swift /usr/share/miniconda /usr/share/az_* \
+            /usr/lib/google-cloud-sdk /usr/lib/jvm /usr/lib/mono \
+            /usr/lib/heroku /usr/lib/firefox
           sudo docker image prune -a -f
-          sudo apt-get purge -y azure-cli google-* llvm-* dotnet-* powershell mono-* || true
+          sudo apt-get purge -y azure-cli google-* llvm-* dotnet-* powershell \
+            mono-* mysql-* postgresql-* mongodb-* aspnetcore-* msodbcsql* \
+            firefox google-chrome-stable microsoft-edge-stable || true
           sudo apt-get autoremove -y
           sudo apt-get clean
+          echo "=== After cleanup ==="
           df -hT
+
+      - name: Create swap space
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
 
       - name: Install dependencies
         run: |
@@ -95,7 +115,10 @@ jobs:
         run: |
           cd openwrt
           echo "Starting build for ${{ matrix.target }}..."
-          make -j$(nproc) || make -j1 V=s
+          echo "Available space:"
+          df -hT
+          # Use nproc-1 to avoid OOM, fallback to single thread on error
+          make -j$(($(nproc)+1)) || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Organize firmware files
