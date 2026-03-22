@@ -15,7 +15,7 @@ on:
           - r4s
 
 env:
-  IMMORTALWRT_VERSION: "24.10.0"
+  IMMORTALWRT_VERSION: "24.10.5"
   TZ: Asia/Shanghai
 
 jobs:
@@ -84,6 +84,9 @@ jobs:
             | tr '\n' ' ')
           if echo "$PACKAGES" | grep -q 'dnsmasq-full'; then
             PACKAGES="-dnsmasq $PACKAGES"
+          fi
+          if echo "$PACKAGES" | grep -q 'luci-ssl'; then
+            PACKAGES="-libustream-mbedtls $PACKAGES"
           fi
           echo "list=$PACKAGES" >> $GITHUB_OUTPUT
           echo "Packages: $PACKAGES"
@@ -157,10 +160,12 @@ jobs:
             基于 ImmortalWrt `${{ env.IMMORTALWRT_VERSION }}` ImageBuilder 构建
 
             ### 包含插件
-            - OpenClash / MosDNS / Tailscale (GUI)
-            - DDNS / UPnP / TTYD / WoL / frpc
-            - Turboacc / Watchcat / SQM / nlbwmon
-            - 中文界面 / PPPoE / IPv6
+            - OpenClash / Tailscale (CLI) / DDNS / UPnP
+            - TTYD / WoL / frpc / Watchcat / SQM / nlbwmon
+            - nft-offload 流量分载 / 中文界面 / PPPoE
+
+            ### 需刷机后手动安装
+            - MosDNS / Tailscale LuCI GUI / Turboacc
 
             ### 设备对应文件
             - `*x86*` → J1900
