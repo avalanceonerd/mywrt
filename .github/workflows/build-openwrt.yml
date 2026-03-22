@@ -20,7 +20,6 @@ permissions:
 env:
   IMMORTALWRT_VERSION: "24.10.5"
   TZ: Asia/Shanghai
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   determine-targets:
@@ -143,7 +142,7 @@ jobs:
 
       - name: Upload firmware artifact
         if: steps.organize.outputs.status == 'success'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: openwrt-${{ matrix.target }}-${{ needs.determine-targets.outputs.build_tag }}
           path: firmware/${{ matrix.target }}/
@@ -151,28 +150,34 @@ jobs:
 
       - name: Upload to Release
         if: steps.organize.outputs.status == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.determine-targets.outputs.build_tag }}
-          name: ImmortalWrt ${{ needs.determine-targets.outputs.build_date }}
-          body: |
-            ## ImmortalWrt 固件 ${{ needs.determine-targets.outputs.build_date }}
-
-            基于 ImmortalWrt `${{ env.IMMORTALWRT_VERSION }}` ImageBuilder 构建
-
-            ### 包含插件
-            - OpenClash / Tailscale (CLI) / DDNS / UPnP
-            - TTYD / WoL / frpc / Watchcat / SQM / nlbwmon
-            - nft-offload 流量分载 / 中文界面 / PPPoE
-
-            ### 需刷机后手动安装
-            - MosDNS / Tailscale LuCI GUI / Turboacc
-
-            ### 设备对应文件
-            - `*x86*` → J1900
-            - `*r4s*` → NanoPi R4S
-            - `*r2s*` → NanoPi R2S
-          files: firmware/${{ matrix.target }}/*
-          make_latest: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.determine-targets.outputs.build_tag }}"
+          DATE="${{ needs.determine-targets.outputs.build_date }}"
+          BODY="$(cat <<'EOF'
+          ## ImmortalWrt 固件 $DATE
+
+          基于 ImmortalWrt ${{ env.IMMORTALWRT_VERSION }} ImageBuilder 构建
+
+          ### 包含插件
+          - OpenClash / Tailscale (CLI) / DDNS / UPnP
+          - TTYD / WoL / frpc / Watchcat / SQM / nlbwmon
+          - nft-offload 流量分载 / 中文界面 / PPPoE
+
+          ### 需刷机后手动安装
+          - MosDNS / Tailscale LuCI GUI / Turboacc
+
+          ### 设备对应文件
+          - *x86* → J1900
+          - *r4s* → NanoPi R4S
+          - *r2s* → NanoPi R2S
+          EOF
+          )"
+          if ! gh release view "$TAG" &>/dev/null; then
+            gh release create "$TAG" \
+              --title "ImmortalWrt $DATE" \
+              --notes "$BODY" \
+              --latest
+          fi
+          gh release upload "$TAG" firmware/${{ matrix.target }}/* --clobber
