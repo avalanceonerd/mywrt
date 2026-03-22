@@ -79,11 +79,9 @@ jobs:
       - name: Extract packages from config
         id: packages
         run: |
-          # Parse CONFIG_PACKAGE_xxx=y from config, skip meta/target configs
           PACKAGES=$(grep '^CONFIG_PACKAGE_' configs/${{ matrix.target }}.config \
             | sed 's/CONFIG_PACKAGE_//;s/=y//' \
             | tr '\n' ' ')
-          # dnsmasq-full conflicts with default dnsmasq, need to remove default first
           if echo "$PACKAGES" | grep -q 'dnsmasq-full'; then
             PACKAGES="-dnsmasq $PACKAGES"
           fi
