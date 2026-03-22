@@ -20,6 +20,7 @@ permissions:
 env:
   IMMORTALWRT_VERSION: "24.10.5"
   TZ: Asia/Shanghai
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   determine-targets:
