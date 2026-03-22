@@ -85,9 +85,6 @@ jobs:
           if echo "$PACKAGES" | grep -q 'dnsmasq-full'; then
             PACKAGES="-dnsmasq $PACKAGES"
           fi
-          if echo "$PACKAGES" | grep -q 'luci-ssl'; then
-            PACKAGES="-libustream-mbedtls $PACKAGES"
-          fi
           echo "list=$PACKAGES" >> $GITHUB_OUTPUT
           echo "Packages: $PACKAGES"
 
